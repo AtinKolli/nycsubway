@@ -11,11 +11,9 @@ for i in range(1, 31):
         with open(file_name, "wb") as f:
             f.write(response.content)
         
-        # Extract the contents of the .tar.xz file
         with tarfile.open(file_name, "r:xz") as tar:
             tar.extractall(path="./data/09-"+str(i)+"/") 
         
-        # Optionally, delete the .tar.xz file after extracting if you don't need it
         os.remove(file_name)
         
         print(f"Extracted CSVs from {file_name}")
