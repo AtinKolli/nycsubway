@@ -3,6 +3,7 @@ import networkx as nx
 import bisect
 import random
 from functions import *
+import community as community_louvain
 
 stop_mapping={}
 with open("stops.txt", "r") as f:
@@ -19,11 +20,12 @@ station_graph={}
 #parse data from data folder
 get_data(station_graph, edge_count, edge_time, visit_count, visit_time)
 
+print(station_graph, edge_count, edge_time, visit_count, visit_time)
+
 #construct graph
 G = nx.DiGraph() 
-for node, neighbors in station_graph.items():
-    for neighbor, travel_time in neighbors:
-        G.add_edge(node, neighbor, weight=travel_time)
+for (station1, station2), trip_count in edge_count.items():
+    G.add_edge(station1, station2, weight=trip_count)
 
 #get biggest component, average shortest path, and efficiency
 giant_component_size_global, avg_shortest_path_len_global, efficiency_global = calc_globals(G)

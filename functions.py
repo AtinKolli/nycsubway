@@ -2,6 +2,9 @@ import pandas
 import networkx as nx
 import bisect
 import random
+import community as community_louvain
+from collections import defaultdict
+
 
 def get_data(station_graph, edge_count, edge_time, visit_count, visit_time):
     for i in range(1, 31):
@@ -85,3 +88,14 @@ def simulate_node_failure(G,node_to_remove):
     efficiency = nx.global_efficiency(undirected_subgraph)
     
     return [giant_component_size,avg_shortest_path_len, efficiency]
+
+def find_communities(G):
+    G_undirected = G.to_undirected()
+    partition = community_louvain.best_partition(G_undirected, weight='weight')
+    communities = defaultdict(list)
+    for node, community_id in partition.items():
+        communities[community_id].append(node)
+
+    print("Detected Communities:")
+    for community_id, nodes in communities.items():
+        print(f"Community {community_id}: {nodes}")
