@@ -55,20 +55,21 @@ def read_stop_mapping():
                 # Ensure the row has at least 4 columns
                 if len(row) < 4:
                     raise ValueError(f"Row has insufficient columns: {row}")
-
+                
+                values = row.strip().split(",")
                 # Extract data and strip whitespace
-                stop_id = row[0].strip().lower()
-                stop_name = row[1].strip().lower()
-                latitude = float(row[2].strip())
-                longitude = float(row[3].strip())
+                stop_id = values[0].strip().lower()
+                stop_name = values[1].strip().strip().lower()
+                latitude = float(values[2].strip())
+                longitude = float(values[3].strip())
 
                 # Store in mapping
                 stop_mapping[stop_id] = (stop_name, latitude, longitude)
             except ValueError as e:
                 # Log and skip invalid rows
-                print(f"Skipping line due to error: {e} | Line: {row}")
+                print(f"Skipping line due to error: {e} | Line: {row} in reading. {row.strip().split(",")}")
             except IndexError as e:
-                print(f"Skipping line due to missing data: {e} | Line: {row}")
+                print(f"Skipping line due to missing data: {e} | Line: {row}, {values}, {len(values)}")
     return stop_mapping
 
 with open('test_stops.txt', 'r', encoding='utf-8') as file:

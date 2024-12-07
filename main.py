@@ -54,7 +54,7 @@ with open("test_stops.txt", "r") as f:
         
         except ValueError as e:
             # Print error message and skip the line if there's a problem with conversion
-            print(f"Skipping line due to error: {e} | Line: {line.strip()}")
+            print(f"Skipping line due to error: {e} | Line: {line.strip()}, {line.strip().split(",")}")
 
 # Debugging: Check loaded stops
 print("Loaded stops:", list(stops.keys())[:10])  # Print first 10 normalized station names
