@@ -1,22 +1,81 @@
+
 import pandas
 import networkx as nx
 import bisect
 import random
 import community as community_louvain
 from collections import defaultdict
+import math
+import csv
 
-#read lines.txt and return a dictionary that maps each stop to the lines it serves
-def read_stops():
-    stop_lines = {}
-    with open("lines.txt", "r") as f:
-        for line in f:
-            info=line.split(",")
-            stop_name = info[5]
-            if stop_name not in stop_lines:
-                stop_lines[stop_name] = []
-            lines = info[8].split(' ')
-            stop_lines[stop_name].append(lines)
-    return stop_lines
+# Helper function for station name normalization
+def normalize_station_name(name):
+    return name.strip().lower().replace("-", "").replace("sq", "square").replace(".", "")
+
+# Helper method to calculate distance between two points using the Haversine formula
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371  # Earth radius in kilometers
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+
+    a = math.sin(delta_phi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c  # distance in kilometers
+
+# New function to get latitude and longitude from stop_mapping (from stops.txt)
+def get_coordinates(stop_name, stop_mapping):
+    stop_info = stop_mapping.get(stop_name)
+    if stop_info:
+        lat, lon = stop_info[2], stop_info[3]
+        return lat, lon
+    return None, None
+
+# New function to calculate distance between two stops
+def find_distance(place1, place2, stop_mapping):
+    lat1, lon1 = get_coordinates(place1, stop_mapping)
+    lat2, lon2 = get_coordinates(place2, stop_mapping)
+
+    if lat1 is None or lat2 is None:
+        return float('inf')  # If coordinates are missing, return infinity (unreachable)
+
+    return haversine(lat1, lon1, lat2, lon2)
+
+# Function to parse stops.txt and create a mapping of stop information
+
+def read_stop_mapping():
+    stop_mapping = {}
+    with open('stops.txt', 'r', encoding='utf-8') as file:
+        # csv_reader = csv.reader(file)
+        # next(csv_reader)  # Skip the header row explicitly using the CSV reader
+        lines = file.readlines()[1:]
+
+        for row in lines:
+            try:
+                # Ensure the row has at least 4 columns
+                if len(row) < 4:
+                    raise ValueError(f"Row has insufficient columns: {row}")
+
+                # Extract data and strip whitespace
+                stop_id = row[0].strip().lower()
+                stop_name = row[1].strip().lower()
+                latitude = float(row[2].strip())
+                longitude = float(row[3].strip())
+
+                # Store in mapping
+                stop_mapping[stop_id] = (stop_name, latitude, longitude)
+            except ValueError as e:
+                # Log and skip invalid rows
+                print(f"Skipping line due to error: {e} | Line: {row}")
+            except IndexError as e:
+                print(f"Skipping line due to missing data: {e} | Line: {row}")
+    return stop_mapping
+
+with open('test_stops.txt', 'r', encoding='utf-8') as file:
+    for line in file:
+        print(f"Raw line: {line}")
+
+
 
 #given a stop name and two lines, check if they are referring to the same station. there are some stations with the same name but different locations
 #this method confirms if they refer to the same station. might be useful in distance function
@@ -30,7 +89,7 @@ def verify_match(stop, line_name1, line_name2, stop_lines):
 
 #helper for find_merged_segments
 def find_segments(line_name1, line_name2, line1, line2):
-    stop_lines = read_stops()
+    stop_lines = read_stop_mapping()
     stops1=set(line1)
     start=0
     while start<len(line2) and not (line2[start] in stops1 and verify_match(line2[start], line_name1, line_name2, stop_lines)):
@@ -58,59 +117,65 @@ def get_merged_segments(line_name1, line_name2, lines):
     return segments, reversed_segments
 
 #use latitude longitude or some other API or method to find distance between two stops. add parameters if necessary
-def find_distance(place1, place2):
+def find_distance(place1, place2, stop_mapping):
     #TODO
-    return 10
+    lat1, lon1 = get_coordinates(place1, stop_mapping)
+    lat2, lon2 = get_coordinates(place2, stop_mapping)
+
+    if lat1 is None or lat2 is None:
+        return float('inf')  # If coordinates are missing, return infinity (unreachable)
+
+    return haversine(lat1, lon1, lat2, lon2)
 
 #helper to find differences for each stop on the line to nearest stop served by an overlapping line
-def find_differences(line_name, alternate_name, lines_list, stop_lines, segments):
+#helper to find differences for each stop on the line to nearest stop served by an overlapping line
+def find_differences(line_name, alternate_name, lines_list, stop_lines, segments, stop_mapping):
     line = lines_list[line_name]
-    differences={stop: float('inf') for stop in line}
+    differences = {stop: float('inf') for stop in line}
     alternate_line = lines_list[alternate_name]
     if not segments: 
-        return None
+        return differences  # Return an empty differences dictionary instead of None
     cur_segment = 0
     segment_index = 0
-    i=0
-    while i<len(line) and (line[i] != segments[0][0] or not verify_match(line[i], line_name, alternate_name, stop_lines)):
-        i+=1
+    i = 0
+    while i < len(line) and (line[i] != segments[0][0] or not verify_match(line[i], line_name, alternate_name, stop_lines)):
+        i += 1
     while i < len(line):
         stop = line[i]
         if cur_segment == len(segments): 
-            i+=1
+            i += 1
             continue
         if stop == segments[cur_segment][segment_index] and verify_match(stop, line_name, alternate_name, stop_lines):
-            # if segment_index == 0 and i > 0:
-            #     differences[line[i-1]]=min(differences[line[i-1]], find_distance(line[i-1], segments[cur_segment][0]))
             differences[stop] = 0
             segment_index += 1
             if segment_index == len(segments[cur_segment]):
-                # if i<len(line)-1:
-                #     differences[line[i+1]] = min(differences[line[i+1]], find_distance(line[i+1], segments[cur_segment][-1]))
                 cur_segment += 1
                 segment_index = 0
         else:
-            differences[stop] = find_distance(stop, segments[cur_segment][segment_index])
+            differences[stop] = find_distance(stop, segments[cur_segment][segment_index], stop_mapping)
             if segment_index > 0:
-                differences[stop] = min(differences[stop], find_distance(stop, segments[cur_segment][segment_index - 1]))
+                differences[stop] = min(differences[stop], find_distance(stop, segments[cur_segment][segment_index - 1], stop_mapping))
             elif cur_segment > 0:
-                differences[stop] = min(differences[stop], find_distance(stop, segments[cur_segment - 1][-1]))
-        i+=1
-    # print(alternate_name, differences)
+                differences[stop] = min(differences[stop], find_distance(stop, segments[cur_segment - 1][-1], stop_mapping))
+        i += 1
     return differences
+
+
 
 # for each stop on the line, get the distance to the nearest stop that is served by a different line(0 if other line serves same station). used to simulate if line goes down
 #TODO: if a stop is further than a certain value(lets say 0.3 miles), set distance to infinity to say it is unreachable
 #Could also change it so that if a station is >=x stops away from the nearest shared segment, it is set to unreachable. would have to change find_differences for that
-def get_differences(line_name, local_lines, lines_list):
-    stop_lines = read_stops()
+# for each stop on the line, get the distance to the nearest stop that is served by a different line(0 if other line serves same station). used to simulate if line goes down
+def get_differences(line_name, local_lines, lines_list, stop_mapping):
+    stop_lines = read_stop_mapping()
     line = lines_list[line_name]
-    differences={stop: [float('inf'), None] for stop in line}
+    differences = {stop: [float('inf'), None] for stop in line}
     for alternate_name in local_lines[line_name]:
         alternate_line = lines_list[alternate_name]
         segments, reversed_segments = get_merged_segments(line_name, alternate_name, lines_list)
-        new_differences = find_differences(line_name, alternate_name, lines_list, stop_lines, segments)
-        reversed_differences = find_differences(line_name, alternate_name, lines_list, stop_lines, reversed_segments)
+        # Pass stop_mapping to find_differences
+        new_differences = find_differences(line_name, alternate_name, lines_list, stop_lines, segments, stop_mapping)
+        reversed_differences = find_differences(line_name, alternate_name, lines_list, stop_lines, reversed_segments, stop_mapping)
         for stop in new_differences:
             if new_differences[stop] < differences[stop][0]:
                 differences[stop] = (new_differences[stop], alternate_name)
@@ -118,9 +183,6 @@ def get_differences(line_name, local_lines, lines_list):
             if reversed_differences[stop] < differences[stop][0]:
                 differences[stop] = (reversed_differences[stop], alternate_name)
     return differences
-
-
-
 
 def get_data(edge_map, line_map):
     stop_mapping={}
