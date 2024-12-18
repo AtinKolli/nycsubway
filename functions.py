@@ -8,11 +8,11 @@ from collections import defaultdict
 import math
 import csv
 
-# Helper function for station name normalization
+# helper function to normalize station names
 def normalize_station_name(name):
     return name.strip().lower().replace("-", "").replace("sq", "square").replace(".", "")
 
-# Helper method to calculate distance between two points using the Haversine formula
+# helper method to calculate distance between two points using the Haversine formula
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371  # Earth radius in kilometers
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -21,9 +21,9 @@ def haversine(lat1, lon1, lat2, lon2):
 
     a = math.sin(delta_phi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2)**2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c  # distance in kilometers
+    return R * c  # distance in km
 
-# New function to get latitude and longitude from stop_mapping (from stops.txt)
+# get latitude and longitude from stops.txt
 def get_coordinates(stop_name, stop_mapping):
     stop_info = stop_mapping.get(stop_name)
     if stop_info:
@@ -31,18 +31,16 @@ def get_coordinates(stop_name, stop_mapping):
         return lat, lon
     return None, None
 
-# New function to calculate distance between two stops
+# calculate distance between two stops
 def find_distance(place1, place2, stop_mapping):
     lat1, lon1 = get_coordinates(place1, stop_mapping)
     lat2, lon2 = get_coordinates(place2, stop_mapping)
 
     if lat1 is None or lat2 is None:
-        return float('inf')  # If coordinates are missing, return infinity (unreachable)
-
+        return float('inf')  # return infinity if coordinates are missing
     return haversine(lat1, lon1, lat2, lon2)
 
-# Function to parse stops.txt and create a mapping of stop information
-
+#parse stops.txt and create a mapping of stop information
 def read_stop_mapping():
     stop_mapping = {}
     with open('stops.txt', 'r', encoding='utf-8') as file:
@@ -57,17 +55,17 @@ def read_stop_mapping():
                     raise ValueError(f"Row has insufficient columns: {row}")
                 
                 values = row.strip().split(",")
-                # Extract data and strip whitespace
+                # strip whitespace and extract data
                 stop_id = values[0].strip().lower()
                 stop_name = values[1].strip().strip().lower()
                 latitude = float(values[2].strip())
                 longitude = float(values[3].strip())
 
-                # Store in mapping
+                # store in mapping
                 stop_mapping[stop_id] = (stop_name, latitude, longitude)
             except ValueError as e:
-                # Log and skip invalid rows
-                print(f"Skipping line due to error: {e} | Line: {row} in reading. {row.strip().split(",")}")
+                # skip invalid rows, print to log if error
+                print(f"Skipping line due to error: {e} | Line: {row} in reading. {row.strip().split(',')}")
             except IndexError as e:
                 print(f"Skipping line due to missing data: {e} | Line: {row}, {values}, {len(values)}")
     return stop_mapping
@@ -75,8 +73,6 @@ def read_stop_mapping():
 with open('test_stops.txt', 'r', encoding='utf-8') as file:
     for line in file:
         print(f"Raw line: {line}")
-
-
 
 #given a stop name and two lines, check if they are referring to the same station. there are some stations with the same name but different locations
 #this method confirms if they refer to the same station. might be useful in distance function
@@ -124,18 +120,17 @@ def find_distance(place1, place2, stop_mapping):
     lat2, lon2 = get_coordinates(place2, stop_mapping)
 
     if lat1 is None or lat2 is None:
-        return float('inf')  # If coordinates are missing, return infinity (unreachable)
+        return float('inf')  # return infinity if coordinates are missing
 
     return haversine(lat1, lon1, lat2, lon2)
 
-#helper to find differences for each stop on the line to nearest stop served by an overlapping line
 #helper to find differences for each stop on the line to nearest stop served by an overlapping line
 def find_differences(line_name, alternate_name, lines_list, stop_lines, segments, stop_mapping):
     line = lines_list[line_name]
     differences = {stop: float('inf') for stop in line}
     alternate_line = lines_list[alternate_name]
     if not segments: 
-        return differences  # Return an empty differences dictionary instead of None
+        return differences  # return an empty differences dictionary if no segments
     cur_segment = 0
     segment_index = 0
     i = 0
@@ -162,11 +157,9 @@ def find_differences(line_name, alternate_name, lines_list, stop_lines, segments
     return differences
 
 
-
 # for each stop on the line, get the distance to the nearest stop that is served by a different line(0 if other line serves same station). used to simulate if line goes down
 #TODO: if a stop is further than a certain value(lets say 0.3 miles), set distance to infinity to say it is unreachable
 #Could also change it so that if a station is >=x stops away from the nearest shared segment, it is set to unreachable. would have to change find_differences for that
-# for each stop on the line, get the distance to the nearest stop that is served by a different line(0 if other line serves same station). used to simulate if line goes down
 def get_differences(line_name, local_lines, lines_list, stop_mapping):
     stop_lines = read_stop_mapping()
     line = lines_list[line_name]
@@ -174,7 +167,7 @@ def get_differences(line_name, local_lines, lines_list, stop_mapping):
     for alternate_name in local_lines[line_name]:
         alternate_line = lines_list[alternate_name]
         segments, reversed_segments = get_merged_segments(line_name, alternate_name, lines_list)
-        # Pass stop_mapping to find_differences
+        # pass stop_mapping to find_differences
         new_differences = find_differences(line_name, alternate_name, lines_list, stop_lines, segments, stop_mapping)
         reversed_differences = find_differences(line_name, alternate_name, lines_list, stop_lines, reversed_segments, stop_mapping)
         for stop in new_differences:
@@ -186,51 +179,57 @@ def get_differences(line_name, local_lines, lines_list, stop_mapping):
     return differences
 
 def get_data(edge_map, line_map):
-    stop_mapping={}
+    stop_mapping = {}
     with open("stops.txt", "r") as f:
         for line in f:
-            info=line.split(",")
-            stop_mapping[info[0]]=info[1]
-    
-    visit_count={}
-    visit_time={}
-    edge_count={}
-    edge_time={}
-    station_graph={}
-    # current_lines = {}
+            info = line.strip().split(",")
+            stop_mapping[info[0]] = info[1]
 
-    for i in range(1, 31):
-        folder="data/09-"+str(i)+"/"
-        filename=folder+"subwaydatanyc_2024-09-"+str(i)+"_stop_times.csv"
-        if i<10:
-            filename=folder+"subwaydatanyc_2024-09-0"+str(i)+"_stop_times.csv"
-        df=pandas.read_csv(filename)
-        current_trips={}
-        for index, row in df.iterrows():
-            #Second condition handles errors in data where arrival time is too early. In this case, treat it as new trip
-            if row['trip_uid'] not in current_trips or row['arrival_time']-current_trips[row['trip_uid']][1]<20:
-                current_trips[row['trip_uid']]=[stop_mapping[row['stop_id']], row['departure_time']]
-                # current_lines[row['trip_uid']]={line for line in line_map}
-            else:
-                prev_stop,prev_time=current_trips[row['trip_uid']]
-                if prev_stop not in station_graph:
-                    station_graph[prev_stop]=[]
-                edge=(prev_stop, stop_mapping[row["stop_id"]])
-                # current_lines[row['trip_uid']] = line_map[edge] & current_lines[row['trip_uid']]
-                if edge not in edge_count:
-                    edge_count[edge]=0
-                    edge_time[edge]=0
-                edge_count[edge]+=1
-                edge_time[edge]+=row['arrival_time']-prev_time
-                if pandas.isna(row['departure_time']) or row['departure_time'] == '': continue
-                if stop_mapping[row["stop_id"]] not in visit_count:
-                    visit_count[stop_mapping[row["stop_id"]]]=0
-                    visit_time[stop_mapping[row["stop_id"]]]=0
-                visit_count[stop_mapping[row["stop_id"]]]+=1
-                visit_time[stop_mapping[row["stop_id"]]]+=row["departure_time"]-row['arrival_time']
-                current_trips[row['trip_uid']]=[stop_mapping[row["stop_id"]], row['departure_time']]
-        print("got data for day",i)
+    visit_count = {}
+    visit_time = {}
+    edge_count = {}
+    edge_time = {}
+    station_graph = {}
+
+    # read lines from lines.txt
+    lines = []
+    with open("lines.txt", "r") as f:
+        for line in f:
+            lines.append(line.strip().split(","))
+
+    for line in lines:
+        for i in range(len(line) - 1):
+            station1, station2 = line[i], line[i + 1]
+            
+            # map station IDs to stop names
+            try:
+                station1_name = stop_mapping[station1]
+                station2_name = stop_mapping[station2]
+            except KeyError as e:
+                print(f"Missing stop ID: {e}. Skipping this edge.")
+                continue
+
+            # update station graph
+            if station1_name not in station_graph:
+                station_graph[station1_name] = []
+            if station2_name not in station_graph:
+                station_graph[station2_name] = []
+
+            station_graph[station1_name].append(station2_name)
+            station_graph[station2_name].append(station1_name)
+
+            # update edge data
+            edge = (station1_name, station2_name)
+            if edge not in edge_count:
+                edge_count[edge] = 0
+                edge_time[edge] = 0
+
+            edge_count[edge] += 1
+
+    print("Finished processing stops and lines.")
     return station_graph, edge_count, edge_time, visit_count, visit_time
+
+
 
 def calc_globals(G):
     largest_cc_global = max(nx.strongly_connected_components(G), key=len)
@@ -249,18 +248,19 @@ def calc_globals(G):
 #iterate through every node and calculate network robustness measures with it removed
 def find_significant_nodes(G, giant_component_size_global, avg_shortest_path_len_global):
     nodes = list(G.nodes())
-    components=[]
-    avg_lens=[]
-    count=0
+    components = []
+    avg_lens = []
+    efficiencies = []
+
     for node_to_remove in G:
-        component_size, avg_len = simulate_node_failure(G,node_to_remove)
-        components.append([giant_component_size_global-component_size,node_to_remove])
-        avg_lens.append([avg_shortest_path_len_global-avg_len, node_to_remove])
-        count+=1
+        component_size, avg_len = simulate_node_failure(G, node_to_remove)
+        components.append([giant_component_size_global - component_size, node_to_remove])
+        avg_lens.append([avg_shortest_path_len_global - avg_len, node_to_remove])
     
-    components=sorted(components)[::-1]
-    avg_lens=sorted(avg_lens)[::-1]
-    return [components, avg_lens]
+    components = sorted(components)[::-1]
+    avg_lens = sorted(avg_lens)[::-1]
+    
+    return components, avg_lens, efficiencies
 
 #helper method. remove node and calculate robustness
 def simulate_node_failure(G,node_to_remove):
